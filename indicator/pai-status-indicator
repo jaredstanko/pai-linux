@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""PAI-Incus System Tray Indicator
+
+Provides a system tray icon with controls for the PAI sandbox.
+Works on GNOME (with AppIndicator extension), KDE Plasma, XFCE,
+Cinnamon, and MATE.
+
+Menu mirrors PAI-Status.app from pai-lima:
+  - Status display (green/red dot)
+  - Start / Stop sandbox
+  - New PAI Session (opens terminal)
+  - Resume Session (opens terminal with session picker)
+  - Open Web Portal (opens browser)
+  - Open Terminal (plain shell in sandbox)
+  - Quit
+"""
+
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+
+import gi
+
+# Try Ayatana first (modern), fall back to legacy AppIndicator
+try:
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+except (ValueError, ImportError):
+    gi.require_version("AppIndicator3", "0.1")
+    from gi.repository import AppIndicator3
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib
+
+# --- Configuration -----------------------------------------------------------
+
+CONTAINER_NAME = os.environ.get("PAI_CONTAINER", "pai")
+PORTAL_PORT = os.environ.get("PAI_PORTAL_PORT", "8080")
+POLL_INTERVAL = 5  # seconds between status checks
+APP_ID = "pai-incus-status"
+
+# --- Helpers -----------------------------------------------------------------
+
+
+def get_container_status():
+    """Get container status: 'RUNNING', 'STOPPED', or 'UNKNOWN'."""
+    try:
+        result = subprocess.run(
+            ["incus", "info", CONTAINER_NAME],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith("Status:"):
+                return line.split(":")[1].strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return "UNKNOWN"
+
+
+def run_in_terminal(command):
+    """Open a terminal emulator and run a command inside it."""
+    terminals = [
+        # Try common terminals in preference order
+        ("gnome-terminal", ["gnome-terminal", "--", "bash", "-c", command]),
+        ("konsole", ["konsole", "-e", "bash", "-c", command]),
+        ("xfce4-terminal", ["xfce4-terminal", "-e", f"bash -c '{command}'"]),
+        ("kitty", ["kitty", "bash", "-c", command]),
+        ("alacritty", ["alacritty", "-e", "bash", "-c", command]),
+        ("xterm", ["xterm", "-e", f"bash -c '{command}'"]),
+    ]
+    for name, cmd in terminals:
+        if subprocess.run(["which", name], capture_output=True).returncode == 0:
+            subprocess.Popen(cmd)
+            return
+    # Last resort: just run it
+    subprocess.Popen(["bash", "-c", command])
+
+
+def incus_exec(cmd_inside):
+    """Build the full incus exec command string for running inside the container."""
+    return (
+        f"incus exec {CONTAINER_NAME} --user 1000 --group 1000 "
+        f"--cwd /home/claude --env HOME=/home/claude -- {cmd_inside}"
+    )
+
+
+# --- Indicator ---------------------------------------------------------------
+
+
+class PAIIndicator:
+    def __init__(self):
+        self.status = "UNKNOWN"
+
+        self.indicator = AppIndicator3.Indicator.new(
+            APP_ID,
+            "computer",
+            AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
+        )
+        self.indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
+
+        self.build_menu()
+        self.update_status()
+
+        # Start background status polling
+        self.polling = True
+        self.poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self.poll_thread.start()
+
+    def build_menu(self):
+        menu = Gtk.Menu()
+
+        # Status line (not clickable)
+        self.status_item = Gtk.MenuItem(label="Sandbox: checking...")
+        self.status_item.set_sensitive(False)
+        menu.append(self.status_item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        # Start / Stop
+        self.start_item = Gtk.MenuItem(label="Start Sandbox")
+        self.start_item.connect("activate", self.on_start)
+        menu.append(self.start_item)
+
+        self.stop_item = Gtk.MenuItem(label="Stop Sandbox")
+        self.stop_item.connect("activate", self.on_stop)
+        menu.append(self.stop_item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        # New PAI Session
+        item = Gtk.MenuItem(label="New PAI Session")
+        item.connect("activate", self.on_new_session)
+        menu.append(item)
+
+        # Resume Session
+        item = Gtk.MenuItem(label="Resume Session")
+        item.connect("activate", self.on_resume_session)
+        menu.append(item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        # Open Web Portal
+        item = Gtk.MenuItem(label="Open Web Portal")
+        item.connect("activate", self.on_open_web)
+        menu.append(item)
+
+        # Open Terminal
+        item = Gtk.MenuItem(label="Open Terminal")
+        item.connect("activate", self.on_open_terminal)
+        menu.append(item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        # Quit
+        item = Gtk.MenuItem(label="Quit")
+        item.connect("activate", self.on_quit)
+        menu.append(item)
+
+        menu.show_all()
+        self.indicator.set_menu(menu)
+
+    def update_status(self):
+        """Update the menu and icon based on container status."""
+        self.status = get_container_status()
+
+        if self.status == "RUNNING":
+            self.indicator.set_icon_full("media-playback-start", "Running")
+            self.status_item.set_label("Sandbox: Running")
+            self.start_item.set_sensitive(False)
+            self.stop_item.set_sensitive(True)
+        elif self.status == "STOPPED":
+            self.indicator.set_icon_full("media-playback-stop", "Stopped")
+            self.status_item.set_label("Sandbox: Stopped")
+            self.start_item.set_sensitive(True)
+            self.stop_item.set_sensitive(False)
+        else:
+            self.indicator.set_icon_full("dialog-question", "Unknown")
+            self.status_item.set_label(f"Sandbox: {self.status}")
+            self.start_item.set_sensitive(True)
+            self.stop_item.set_sensitive(True)
+
+    def _poll_loop(self):
+        """Background thread: poll container status every N seconds."""
+        while self.polling:
+            time.sleep(POLL_INTERVAL)
+            GLib.idle_add(self.update_status)
+
+    # --- Actions -------------------------------------------------------------
+
+    def on_start(self, _widget):
+        self.status_item.set_label("Sandbox: Starting...")
+        threading.Thread(target=self._do_start, daemon=True).start()
+
+    def _do_start(self):
+        subprocess.run(["incus", "start", CONTAINER_NAME], capture_output=True)
+        # Wait for systemd readiness
+        for _ in range(30):
+            result = subprocess.run(
+                ["incus", "exec", CONTAINER_NAME, "--",
+                 "systemctl", "is-system-running", "--wait"],
+                capture_output=True,
+            )
+            if result.returncode == 0:
+                break
+            time.sleep(1)
+        GLib.idle_add(self.update_status)
+
+    def on_stop(self, _widget):
+        self.status_item.set_label("Sandbox: Stopping...")
+        threading.Thread(target=self._do_stop, daemon=True).start()
+
+    def _do_stop(self):
+        subprocess.run(
+            ["incus", "stop", CONTAINER_NAME, "--timeout", "30"],
+            capture_output=True,
+        )
+        GLib.idle_add(self.update_status)
+
+    def on_new_session(self, _widget):
+        if self.status != "RUNNING":
+            self.on_start(_widget)
+        cmd = incus_exec('bash -lc "bun ~/.claude/PAI/Tools/pai.ts"')
+        run_in_terminal(cmd)
+
+    def on_resume_session(self, _widget):
+        if self.status != "RUNNING":
+            self.on_start(_widget)
+        cmd = incus_exec('bash -lc "claude -r"')
+        run_in_terminal(cmd)
+
+    def on_open_web(self, _widget):
+        subprocess.Popen(["xdg-open", f"http://localhost:{PORTAL_PORT}"])
+
+    def on_open_terminal(self, _widget):
+        if self.status != "RUNNING":
+            self.on_start(_widget)
+        cmd = incus_exec("bash -l")
+        run_in_terminal(cmd)
+
+    def on_quit(self, _widget):
+        self.polling = False
+        Gtk.main_quit()
+
+
+# --- Entry point -------------------------------------------------------------
+
+def main():
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    PAIIndicator()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    main()

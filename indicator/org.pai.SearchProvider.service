@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.pai.SearchProvider
+Exec=pai-search-provider

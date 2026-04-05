@@ -114,7 +114,7 @@ echo -e "${CYAN}[4/6]${NC} ${BOLD}CLI commands${NC}"
 BIN_DIR="$HOME/.local/bin"
 REMOVED_CMD=false
 
-for cmd in pai-start pai-stop pai-status pai-talk pai-shell; do
+for cmd in pai-start pai-stop pai-status pai-talk pai-shell pai-status-indicator pai-search-provider; do
   if [ -f "$BIN_DIR/$cmd" ]; then
     rm -f "$BIN_DIR/$cmd"
     ok "Removed $cmd"
@@ -140,6 +140,18 @@ for rcfile in "$HOME/.bashrc" "$HOME/.zshrc"; do
     ok "Removed PATH block from $(basename "$rcfile")"
   fi
 done
+
+# Remove desktop integration (indicator, autostart, search provider)
+pkill -f pai-status-indicator 2>/dev/null || true
+rm -f "$HOME/.config/autostart/pai-status.desktop" 2>/dev/null
+rm -f "$HOME/.local/share/applications/pai-status.desktop" 2>/dev/null
+sudo rm -f /usr/share/gnome-shell/search-providers/pai-search-provider.ini 2>/dev/null || true
+sudo rm -f /usr/share/dbus-1/services/org.pai.SearchProvider.service 2>/dev/null || true
+if [ -f "$HOME/.config/autostart/pai-status.desktop" ] || [ -f "$HOME/.local/share/applications/pai-status.desktop" ]; then
+  ok "Removed desktop integration"
+else
+  ok "Desktop integration cleaned up"
+fi
 
 # ─── 4. Workspace data (ASKS FIRST) ──────────────────────────
 

@@ -92,6 +92,8 @@ Open http://localhost:8080 in your browser to see the web portal. From now on, j
 ## What You Get
 
 - **Sandboxed AI** -- Claude Code runs inside an isolated container, not directly on your system
+- **System tray icon** -- start sessions, stop the sandbox, open the web portal from one icon (optional, offered during install)
+- **GNOME search** -- on GNOME, type "pai" in Activities to see PAI actions
 - **Web portal** -- a local website for viewing AI-created content and exchanging files
 - **Session resume** -- pick up previous conversations where you left off
 - **Shared folders** -- `~/pai-workspace/` on your machine is shared with the AI

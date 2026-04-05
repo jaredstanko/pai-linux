@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""PAI-Incus GNOME Search Provider
+
+Lets you type "pai" in GNOME Activities to see PAI actions:
+  - New PAI Session
+  - Resume Session
+  - Open Web Portal
+  - Open Terminal
+  - Start / Stop Sandbox
+
+Runs as a D-Bus service activated by GNOME Shell.
+"""
+
+import subprocess
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+from gi.repository import GLib
+
+BUS_NAME = "org.pai.SearchProvider"
+OBJECT_PATH = "/org/pai/SearchProvider"
+IFACE = "org.gnome.Shell.SearchProvider2"
+
+CONTAINER_NAME = "pai"
+
+ACTIONS = {
+    "new-session": {
+        "name": "PAI: New Session",
+        "description": "Open a new PAI session (Claude Code)",
+        "cmd": "pai-talk",
+    },
+    "resume": {
+        "name": "PAI: Resume Session",
+        "description": "Pick up a previous conversation",
+        "cmd": "pai-talk --resume",
+    },
+    "web-portal": {
+        "name": "PAI: Web Portal",
+        "description": "Open the PAI web portal in your browser",
+        "cmd": "xdg-open http://localhost:8080",
+    },
+    "terminal": {
+        "name": "PAI: Terminal",
+        "description": "Open a shell inside the sandbox",
+        "cmd": "pai-shell",
+    },
+    "start": {
+        "name": "PAI: Start Sandbox",
+        "description": "Start the PAI container",
+        "cmd": "pai-start",
+    },
+    "stop": {
+        "name": "PAI: Stop Sandbox",
+        "description": "Stop the PAI container",
+        "cmd": "pai-stop",
+    },
+    "status": {
+        "name": "PAI: Status",
+        "description": "Check sandbox health and versions",
+        "cmd": "pai-status",
+    },
+}
+
+ALL_IDS = list(ACTIONS.keys())
+
+
+def matches(terms, text):
+    """Check if all search terms appear in the text (case-insensitive)."""
+    text_lower = text.lower()
+    return all(t.lower() in text_lower for t in terms)
+
+
+class PAISearchProvider(dbus.service.Object):
+    @dbus.service.method(IFACE, in_signature="as", out_signature="as")
+    def GetInitialResultSet(self, terms):
+        return [
+            aid for aid, action in ACTIONS.items()
+            if matches(terms, action["name"] + " " + action["description"])
+        ]
+
+    @dbus.service.method(IFACE, in_signature="asas", out_signature="as")
+    def GetSubsearchResultSet(self, previous_results, terms):
+        return [
+            aid for aid in previous_results
+            if aid in ACTIONS and matches(
+                terms, ACTIONS[aid]["name"] + " " + ACTIONS[aid]["description"]
+            )
+        ]
+
+    @dbus.service.method(IFACE, in_signature="as", out_signature="aa{sv}")
+    def GetResultMetas(self, ids):
+        metas = []
+        for aid in ids:
+            if aid in ACTIONS:
+                action = ACTIONS[aid]
+                metas.append({
+                    "id": aid,
+                    "name": action["name"],
+                    "description": action["description"],
+                    "gicon": "computer",
+                })
+        return metas
+
+    @dbus.service.method(IFACE, in_signature="sas", out_signature="")
+    def ActivateResult(self, result_id, terms):
+        if result_id in ACTIONS:
+            cmd = ACTIONS[result_id]["cmd"]
+            # Commands that need a terminal
+            if result_id in ("new-session", "resume", "terminal", "status"):
+                terminals = [
+                    "gnome-terminal", "konsole", "xfce4-terminal",
+                    "kitty", "alacritty", "xterm",
+                ]
+                for term in terminals:
+                    if subprocess.run(
+                        ["which", term], capture_output=True
+                    ).returncode == 0:
+                        subprocess.Popen([term, "--", "bash", "-c", cmd])
+                        return
+            subprocess.Popen(["bash", "-c", cmd])
+
+    @dbus.service.method(IFACE, in_signature="asu", out_signature="")
+    def LaunchSearch(self, terms, timestamp):
+        pass
+
+
+def main():
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SessionBus()
+    bus.request_name(BUS_NAME)
+    PAISearchProvider(bus, OBJECT_PATH)
+    loop = GLib.MainLoop()
+    loop.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=PAI Status
+Comment=System tray indicator for PAI-Incus sandbox
+Exec=pai-status-indicator
+Icon=computer
+Categories=Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
