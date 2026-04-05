@@ -149,6 +149,8 @@ ok "Running as user: $HOST_USER (UID $HOST_UID)"
 MISSING_PKGS=""
 command -v git &>/dev/null || MISSING_PKGS="git"
 command -v curl &>/dev/null || MISSING_PKGS="$MISSING_PKGS curl"
+command -v unzip &>/dev/null || MISSING_PKGS="$MISSING_PKGS unzip"
+command -v fc-cache &>/dev/null || MISSING_PKGS="$MISSING_PKGS fontconfig"
 if [ -n "$MISSING_PKGS" ]; then
   echo "        Installing missing prerequisites:$MISSING_PKGS"
   if command -v dnf &>/dev/null; then
@@ -158,6 +160,26 @@ if [ -n "$MISSING_PKGS" ]; then
     sudo apt-get install -y -qq $MISSING_PKGS >> "$LOG_FILE" 2>&1
   fi
   ok "Prerequisites installed"
+fi
+
+# Install Hack Nerd Font (needed for PAI prompt glyphs, powerline symbols, devicons)
+FONT_DIR="$HOME/.local/share/fonts/HackNerdFont"
+if [ -d "$FONT_DIR" ] && ls "$FONT_DIR"/*.ttf &>/dev/null 2>&1; then
+  skip "Hack Nerd Font"
+else
+  echo "        Installing Hack Nerd Font..."
+  FONT_TMP=$(mktemp -d)
+  FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Hack.zip"
+  if curl -fsSL "$FONT_URL" -o "$FONT_TMP/Hack.zip" >> "$LOG_FILE" 2>&1; then
+    mkdir -p "$FONT_DIR"
+    unzip -qo "$FONT_TMP/Hack.zip" -d "$FONT_DIR" >> "$LOG_FILE" 2>&1 || true
+    # Update font cache
+    fc-cache -f "$FONT_DIR" >> "$LOG_FILE" 2>&1 || true
+    ok "Hack Nerd Font installed"
+  else
+    echo -e "        ${YELLOW}⊘${NC} Could not download Hack Nerd Font (non-blocking)"
+  fi
+  rm -rf "$FONT_TMP"
 fi
 
 # --- Step 2: Install Incus ------------------------------------------------

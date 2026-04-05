@@ -135,6 +135,24 @@ Your files live on your machine in `~/pai-workspace/`. The AI can see them too:
 
 Your data stays on your machine. You can destroy and recreate the sandbox without losing anything.
 
+### Sharing Additional Folders
+
+The quickest way to get files into the sandbox is the `exchange/` folder -- just drop files there.
+
+To give the AI permanent access to a project folder on your machine:
+
+```bash
+./scripts/mount.sh ~/Projects/my-repo
+```
+
+This adds a live mount -- no restart needed. Your directory appears at `/home/claude/my-repo` inside the sandbox with instant two-way sync.
+
+```bash
+./scripts/mount.sh --list                                      # See what's shared
+./scripts/mount.sh ~/Projects/my-repo /home/claude/code        # Choose where it appears
+./scripts/mount.sh --remove my-repo                            # Remove a mount
+```
+
 ## Troubleshooting
 
 **Install fails partway through** -- Just run `./install.sh` again. It's safe to re-run and will pick up where it left off.

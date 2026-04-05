@@ -119,43 +119,57 @@ class PAIIndicator:
 
         menu.append(Gtk.SeparatorMenuItem())
 
-        # Start / Stop
-        self.start_item = Gtk.MenuItem(label="Start Sandbox")
+        # Start / Stop (S)
+        self.start_item = Gtk.MenuItem()
+        self.start_item.set_label("_Start Sandbox")
+        self.start_item.set_use_underline(True)
         self.start_item.connect("activate", self.on_start)
         menu.append(self.start_item)
 
-        self.stop_item = Gtk.MenuItem(label="Stop Sandbox")
+        self.stop_item = Gtk.MenuItem()
+        self.stop_item.set_label("Sto_p Sandbox")
+        self.stop_item.set_use_underline(True)
         self.stop_item.connect("activate", self.on_stop)
         menu.append(self.stop_item)
 
         menu.append(Gtk.SeparatorMenuItem())
 
-        # New PAI Session
-        item = Gtk.MenuItem(label="New PAI Session")
+        # New PAI Session (N)
+        item = Gtk.MenuItem()
+        item.set_label("_New PAI Session")
+        item.set_use_underline(True)
         item.connect("activate", self.on_new_session)
         menu.append(item)
 
-        # Resume Session
-        item = Gtk.MenuItem(label="Resume Session")
+        # Resume Session (R)
+        item = Gtk.MenuItem()
+        item.set_label("_Resume Session")
+        item.set_use_underline(True)
         item.connect("activate", self.on_resume_session)
         menu.append(item)
 
         menu.append(Gtk.SeparatorMenuItem())
 
-        # Open Web Portal
-        item = Gtk.MenuItem(label="Open Web Portal")
+        # Open Web Portal (W)
+        item = Gtk.MenuItem()
+        item.set_label("Open _Web Portal")
+        item.set_use_underline(True)
         item.connect("activate", self.on_open_web)
         menu.append(item)
 
-        # Open Terminal
-        item = Gtk.MenuItem(label="Open Terminal")
+        # Open Terminal (T)
+        item = Gtk.MenuItem()
+        item.set_label("Open _Terminal")
+        item.set_use_underline(True)
         item.connect("activate", self.on_open_terminal)
         menu.append(item)
 
         menu.append(Gtk.SeparatorMenuItem())
 
-        # Quit
-        item = Gtk.MenuItem(label="Quit")
+        # Quit (Q)
+        item = Gtk.MenuItem()
+        item.set_label("_Quit")
+        item.set_use_underline(True)
         item.connect("activate", self.on_quit)
         menu.append(item)
 
