@@ -296,7 +296,8 @@ else
 
   LATEST_RELEASE=$(ls Releases/ | sort -V | tail -1)
   log "Using PAI release: $LATEST_RELEASE"
-  cp -r "Releases/$LATEST_RELEASE/.claude/" ~/
+  mkdir -p ~/.claude
+  cp -r "Releases/$LATEST_RELEASE/.claude/." ~/.claude/
   cd ~/.claude
 
   # Fix installer for CLI mode (no GUI in container)
