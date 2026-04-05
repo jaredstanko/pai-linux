@@ -243,7 +243,9 @@ if ! getent group incus-admin | grep -qw "$HOST_USER"; then
 fi
 
 # Check if current shell actually has the group (may need sg even if user is a member)
-if ! incus version &>/dev/null 2>&1; then
+# Note: "incus version" only prints client version and never contacts the daemon.
+# Use "incus list" to verify we can actually talk to the Incus socket.
+if ! incus list --format csv &>/dev/null 2>&1; then
   echo "        Acquiring incus-admin group for this session..."
   RERUN_ARGS=("$@")
   INSTALL_CMD="cd $(pwd) && ./install.sh ${RERUN_ARGS[*]}"
@@ -323,7 +325,11 @@ else
     # Storage pool — create if missing (--auto may have created one as btrfs/zfs)
     if ! incus storage list --format csv 2>/dev/null | grep -q "^default,"; then
       echo "        Creating default storage pool..."
-      incus storage create default dir >> "$LOG_FILE" 2>&1
+      if ! incus storage create default dir >> "$LOG_FILE" 2>&1; then
+        echo "        ✗ Failed to create storage pool. Check log: $LOG_FILE"
+        echo "          Try: incus storage create default dir"
+        exit 1
+      fi
     fi
 
     # Managed network bridge — create if missing, find a free subnet
@@ -336,14 +342,23 @@ else
       # Kill stale dnsmasq that may hold the address
       sudo pkill -f "dnsmasq.*incusbr0" >> "$LOG_FILE" 2>&1 || true
       echo "        Creating network bridge..."
+      NETWORK_CREATED=false
       for OCTET in 200 201 202 203 204; do
         CANDIDATE="10.${OCTET}.0.1/24"
         if ! ip route show | grep -q "10.${OCTET}.0."; then
-          incus network create incusbr0 \
+          if incus network create incusbr0 \
             ipv4.address="${CANDIDATE}" ipv4.nat=true ipv6.address=none \
-            >> "$LOG_FILE" 2>&1 && break
+            >> "$LOG_FILE" 2>&1; then
+            NETWORK_CREATED=true
+            break
+          fi
         fi
       done
+      if [ "$NETWORK_CREATED" = false ]; then
+        echo "        ✗ Failed to create network bridge. Check log: $LOG_FILE"
+        echo "          All subnets 10.{200-204}.0.0/24 may be in use."
+        exit 1
+      fi
     fi
 
     # Ensure default profile has the network and storage
