@@ -211,17 +211,56 @@ if ! groups "$HOST_USER" | grep -qw incus-admin; then
   echo -e "        ${YELLOW}Run: newgrp incus-admin${NC}"
   echo -e "        ${YELLOW}Then re-run: ./install.sh${NC}"
 
-  # Check if we can proceed with newgrp trick
+  # Try to proceed with sg (runs command under the new group without a new login)
   if ! incus version &>/dev/null 2>&1; then
-    echo ""
-    fail "Cannot proceed without incus-admin group." "Log out and back in, or run: newgrp incus-admin && ./install.sh"
+    echo "        Attempting to continue with new group membership..."
+    RERUN_ARGS=("$@")
+    exec sg incus-admin -c "cd $(pwd) && ./install.sh ${RERUN_ARGS[*]}"
   fi
 fi
 
 # Initialize Incus if not already done
 if ! incus storage list 2>/dev/null | grep -q "default"; then
   echo "        Initializing Incus with defaults..."
-  incus admin init --auto >> "$LOG_FILE" 2>&1
+  if ! incus admin init --auto >> "$LOG_FILE" 2>&1; then
+    # --auto can fail in VMs where common subnets are taken.
+    # Fall back to preseed with an explicit subnet.
+    echo "        Auto-init failed (likely subnet conflict). Trying manual config..."
+    for OCTET in 200 201 202 203 204; do
+      CANDIDATE="10.${OCTET}.0.1/24"
+      if ! ip route show | grep -q "10.${OCTET}.0."; then
+        cat <<PRESEED | incus admin init --preseed >> "$LOG_FILE" 2>&1 && break
+config: {}
+networks:
+- config:
+    ipv4.address: "${CANDIDATE}"
+    ipv4.nat: "true"
+    ipv6.address: none
+  description: ""
+  name: incusbr0
+  type: bridge
+storage_pools:
+- config: {}
+  description: ""
+  name: default
+  driver: dir
+profiles:
+- config: {}
+  description: Default Incus profile
+  devices:
+    eth0:
+      name: eth0
+      network: incusbr0
+      type: nic
+    root:
+      path: /
+      pool: default
+      type: disk
+  name: default
+PRESEED
+      fi
+    done
+  fi
   ok "Incus initialized (default storage pool)"
 else
   skip "Incus already initialized"
