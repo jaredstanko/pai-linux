@@ -42,7 +42,7 @@ echo ""
 
 # ─── 1. Stop and remove Incus container ──────────────────────
 
-echo -e "${CYAN}[1/4]${NC} ${BOLD}Incus container${NC}"
+echo -e "${CYAN}[1/6]${NC} ${BOLD}Incus container${NC}"
 
 if command -v incus &>/dev/null; then
   STATUS=$(pai_container_status)
@@ -63,7 +63,7 @@ fi
 
 # ─── 2. Remove Incus profile ────────────────────────────────
 
-echo -e "${CYAN}[2/4]${NC} ${BOLD}Incus profile${NC}"
+echo -e "${CYAN}[2/6]${NC} ${BOLD}Incus profile${NC}"
 
 PROFILE_NAME="${INSTANCE_NAME}"
 if incus profile show "$PROFILE_NAME" &>/dev/null 2>&1; then
@@ -73,9 +73,43 @@ else
   skip "Profile '${PROFILE_NAME}'"
 fi
 
-# ─── 3. Remove CLI commands ────────────────────────────────
+# ─── 3. Remove Incus infrastructure (if no other containers remain) ───
 
-echo -e "${CYAN}[3/4]${NC} ${BOLD}CLI commands${NC}"
+echo -e "${CYAN}[3/6]${NC} ${BOLD}Incus infrastructure${NC}"
+
+if command -v incus &>/dev/null; then
+  # Only clean up shared Incus resources if no containers are left
+  REMAINING=$(incus list --format csv 2>/dev/null | wc -l || true)
+  if [ "$REMAINING" -eq 0 ]; then
+    # Remove default profile devices we added
+    incus profile device remove default eth0 >> /dev/null 2>&1 || true
+    incus profile device remove default root >> /dev/null 2>&1 || true
+
+    # Remove managed network bridge
+    if incus network list --format csv 2>/dev/null | grep "^incusbr0," | grep -q ",YES,"; then
+      incus network delete incusbr0 2>/dev/null || true
+      ok "Network bridge 'incusbr0' deleted"
+    else
+      skip "Network bridge 'incusbr0'"
+    fi
+
+    # Remove storage pool
+    if incus storage list --format csv 2>/dev/null | grep -q "^default,"; then
+      incus storage delete default 2>/dev/null || true
+      ok "Storage pool 'default' deleted"
+    else
+      skip "Storage pool 'default'"
+    fi
+  else
+    warn "Other containers still exist ($REMAINING) — keeping Incus infrastructure"
+  fi
+else
+  skip "Incus not installed"
+fi
+
+# ─── 4. Remove CLI commands ────────────────────────────────
+
+echo -e "${CYAN}[4/6]${NC} ${BOLD}CLI commands${NC}"
 
 BIN_DIR="$HOME/.local/bin"
 REMOVED_CMD=false
@@ -109,7 +143,39 @@ done
 
 # ─── 4. Workspace data (ASKS FIRST) ──────────────────────────
 
-echo -e "${CYAN}[4/4]${NC} ${BOLD}Workspace data${NC}"
+# ─── 5. Clean up subuid/subgid entries ────────────────────────
+
+echo -e "${CYAN}[5/6]${NC} ${BOLD}Subordinate UID/GID entries${NC}"
+
+if command -v incus &>/dev/null; then
+  REMAINING=$(incus list --format csv 2>/dev/null | wc -l || true)
+  if [ "$REMAINING" -eq 0 ]; then
+    # Remove the root subuid/subgid entries we added
+    if grep -q "^root:.*:1000000000$" /etc/subuid 2>/dev/null; then
+      sudo sed -i '/^root:.*:1000000000$/d' /etc/subuid 2>/dev/null || true
+      sudo sed -i '/^root:.*:1000000000$/d' /etc/subgid 2>/dev/null || true
+      ok "Removed root subordinate UID/GID ranges"
+    else
+      skip "Root subordinate UID ranges"
+    fi
+    HOST_UID="$(id -u)"
+    if grep -q "^root:${HOST_UID}:1$" /etc/subuid 2>/dev/null; then
+      sudo sed -i "/^root:${HOST_UID}:1$/d" /etc/subuid 2>/dev/null || true
+      sudo sed -i "/^root:${HOST_UID}:1$/d" /etc/subgid 2>/dev/null || true
+      ok "Removed host UID mapping from subuid/subgid"
+    else
+      skip "Host UID mapping"
+    fi
+  else
+    warn "Other containers still exist — keeping subuid/subgid entries"
+  fi
+else
+  skip "Incus not installed"
+fi
+
+# ─── 6. Workspace data (ASKS FIRST) ──────────────────────────
+
+echo -e "${CYAN}[6/6]${NC} ${BOLD}Workspace data${NC}"
 
 if [ -d "$WORKSPACE" ]; then
   echo ""
@@ -153,10 +219,14 @@ echo ""
 echo "  What was removed:"
 echo "    - Incus container '${CONTAINER_NAME}'"
 echo "    - Incus profile '${INSTANCE_NAME}'"
+echo "    - Incus storage pool and network bridge (if no other containers)"
+echo "    - Subordinate UID/GID entries (if no other containers)"
 echo "    - CLI commands (pai-start, pai-stop, pai-status, pai-talk, pai-shell)"
+echo "    - PATH block from .bashrc/.zshrc"
 echo ""
 echo "  What was NOT removed:"
-echo "    - Incus itself"
+echo "    - Incus package itself (uninstall with your package manager)"
+echo "    - PipeWire (system audio service, may be used by other apps)"
 echo "    - This repo (pai-incus/)"
 if [ -d "$WORKSPACE" ]; then
   echo "    - ${WORKSPACE}/ (you chose to keep it)"
