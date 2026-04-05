@@ -380,6 +380,10 @@ fi
 # Ensure 'claude' user exists inside container
 if ! incus exec "$CONTAINER_NAME" -- id claude &>/dev/null 2>&1; then
   echo "        Creating 'claude' user in container..."
+  # Remove default 'ubuntu' user if it holds UID 1000
+  if incus exec "$CONTAINER_NAME" -- id -u ubuntu 2>/dev/null | grep -q '^1000$'; then
+    incus exec "$CONTAINER_NAME" -- userdel -r ubuntu >> "$LOG_FILE" 2>&1 || true
+  fi
   incus exec "$CONTAINER_NAME" -- useradd -m -s /bin/bash -u 1000 claude >> "$LOG_FILE" 2>&1
   incus exec "$CONTAINER_NAME" -- usermod -aG sudo claude >> "$LOG_FILE" 2>&1
   # Allow passwordless sudo for provisioning
