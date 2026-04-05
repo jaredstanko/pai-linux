@@ -403,9 +403,9 @@ incus file push "$SCRIPT_DIR/versions.env" "${CONTAINER_NAME}/home/claude/versio
 incus file push "$SCRIPT_DIR/scripts/provision.sh" "${CONTAINER_NAME}/home/claude/provision.sh" >> "$LOG_FILE" 2>&1
 
 if [ "$VERBOSE" = true ]; then
-  incus exec "$CONTAINER_NAME" --user 1000 --group 1000 --cwd /home/claude -- bash /home/claude/provision.sh
+  incus exec "$CONTAINER_NAME" --user 1000 --group 1000 --cwd /home/claude --env HOME=/home/claude -- bash /home/claude/provision.sh
 else
-  incus exec "$CONTAINER_NAME" --user 1000 --group 1000 --cwd /home/claude -- bash /home/claude/provision.sh 2>&1 | tee -a "$LOG_FILE"
+  incus exec "$CONTAINER_NAME" --user 1000 --group 1000 --cwd /home/claude --env HOME=/home/claude -- bash /home/claude/provision.sh 2>&1 | tee -a "$LOG_FILE"
 fi
 ok "Sandbox provisioned"
 
