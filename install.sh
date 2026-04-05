@@ -386,7 +386,29 @@ if [ -d "$PULSE_DIR" ]; then
 fi
 
 if [ ! -e "$PIPEWIRE_SOCK" ] && [ ! -d "$PULSE_DIR" ]; then
-  echo -e "        ${YELLOW}⊘${NC} No audio sockets found (headless server — audio passthrough skipped)"
+  # Try to install and start PipeWire (Fedora and modern Ubuntu/Debian)
+  echo "        No audio sockets found. Installing PipeWire..."
+  if command -v dnf &>/dev/null; then
+    sudo dnf install -y pipewire pipewire-pulseaudio pipewire-utils >> "$LOG_FILE" 2>&1 || true
+  elif command -v apt-get &>/dev/null; then
+    sudo apt-get install -y -qq pipewire pipewire-pulse >> "$LOG_FILE" 2>&1 || true
+  fi
+  # Start PipeWire for the current user
+  systemctl --user enable --now pipewire pipewire-pulse >> "$LOG_FILE" 2>&1 || true
+  # Give sockets a moment to appear
+  sleep 2
+  # Re-check and add devices if sockets appeared
+  if [ -e "$PIPEWIRE_SOCK" ]; then
+    incus profile device add "$PROFILE_NAME" pipewire disk \
+      source="$PIPEWIRE_SOCK" path=/tmp/pipewire-0 >> "$LOG_FILE" 2>&1 || true
+    ok "PipeWire installed and audio passthrough enabled"
+  elif [ -d "$PULSE_DIR" ]; then
+    incus profile device add "$PROFILE_NAME" pulseaudio disk \
+      source="$PULSE_DIR" path=/run/user/1000/pulse >> "$LOG_FILE" 2>&1 || true
+    ok "PulseAudio audio passthrough enabled"
+  else
+    echo -e "        ${YELLOW}⊘${NC} Audio sockets not available (headless server — audio passthrough skipped)"
+  fi
 fi
 
 # --- Step 5: Create and start container -----------------------------------
