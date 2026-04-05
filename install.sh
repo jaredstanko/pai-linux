@@ -32,6 +32,9 @@ VERBOSE=false
 HOST_USER="$(whoami)"
 HOST_UID="$(id -u)"
 
+# Override LOG_FILE to write to the repo directory with a timestamp (matches pai-lima)
+LOG_FILE="$SCRIPT_DIR/pai-install-$(date +%Y%m%dT%H%M%S).log"
+
 # Parse additional flags (--name and --port already consumed by common.sh)
 for arg in ${_PAI_REMAINING_ARGS[@]+"${_PAI_REMAINING_ARGS[@]}"}; do
   case "$arg" in

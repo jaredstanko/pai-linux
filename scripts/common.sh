@@ -9,6 +9,7 @@
 #   WORKSPACE       ~/pai-workspace (default) or ~/pai-workspace-X
 #   PORTAL_PORT     8080 (default) or specified port
 #   LOG_FILE        ~/.pai-install.log (default) or ~/.pai-install-X.log
+#                   (install.sh overrides this to write to the repo directory)
 #
 # Usage in scripts:
 #   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
