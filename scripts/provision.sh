@@ -71,7 +71,13 @@ echo -e "${NC}"
 # --- Step 1: System packages ----------------------------------------------
 step "1/6" "Installing system packages..."
 
-# Add NodeSource repo for Node.js 22 LTS before apt-get update (single update pass)
+# Bootstrap curl and gpg first (needed for NodeSource repo key)
+if ! command -v curl &>/dev/null || ! command -v gpg &>/dev/null; then
+  retry "sudo apt-get update -qq"
+  retry "sudo apt-get install -y -qq curl gnupg"
+fi
+
+# Add NodeSource repo for Node.js 22 LTS before the main apt-get update
 NODE_NEEDS_SETUP=false
 if command -v node &>/dev/null && node --version 2>/dev/null | grep -q "^v2[2-9]"; then
   log "Node.js already installed: $(node --version)"
