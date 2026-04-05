@@ -199,7 +199,7 @@ else
         test -d "/home/claude/$m" && echo "MOUNT_${m}=YES" || echo "MOUNT_${m}=NO"
       done
     '
-    VM_RESULTS=$(incus exec "$CONTAINER" --user 1000 --group 1000 -- bash -lc "$VM_CHECK_SCRIPT" 2>/dev/null || echo "")
+    VM_RESULTS=$(incus exec "$CONTAINER" --user 1000 --group 1000 --env HOME=/home/claude -- bash -lc "$VM_CHECK_SCRIPT" 2>/dev/null || echo "")
 
     # Parse results
     get_val() { echo "$VM_RESULTS" | grep "^$1=" | cut -d= -f2- | tr -d '[:space:]'; }
