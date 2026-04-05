@@ -95,7 +95,7 @@ Open http://localhost:8080 in your browser to see the web portal. From now on, j
 - **Web portal** -- a local website for viewing AI-created content and exchanging files
 - **Session resume** -- pick up previous conversations where you left off
 - **Shared folders** -- `~/pai-workspace/` on your machine is shared with the AI
-- **Audio** -- the AI can speak through your speakers (if PipeWire or PulseAudio is running)
+- **Audio** -- the AI can speak through your speakers (the installer sets up PipeWire automatically)
 
 ## Commands
 
@@ -134,9 +134,9 @@ Your data stays on your machine. You can destroy and recreate the sandbox withou
 
 **Web portal not loading** -- Make sure the sandbox is running (`pai-status`), then try http://localhost:8080.
 
-**No audio** -- Make sure PipeWire or PulseAudio is running on your system. Most desktop Linux installs have this by default.
+**No audio** -- The installer sets up PipeWire automatically. If it's still not working, check that the PipeWire service is running: `systemctl --user status pipewire`.
 
-**Something else broke** -- Run `./scripts/verify.sh` to see what's working and what's not. If you're stuck, [open an issue](https://github.com/jaredstanko/pai-incus/issues).
+**Something else broke** -- Run `./scripts/verify.sh` to see what's working and what's not. Check the install log in the `pai-incus/` folder (named `pai-install-<timestamp>.log`). If you're stuck, [open an issue](https://github.com/jaredstanko/pai-incus/issues).
 
 ---
 
@@ -201,7 +201,7 @@ Your workspace, authentication, and sessions are preserved.
 ./scripts/uninstall.sh
 ```
 
-Removes the sandbox, CLI commands, and Incus profile. Asks before deleting workspace data. Does not remove Incus itself.
+Removes the sandbox container, Incus profile, storage pool, network bridge, CLI commands, PATH block, and subuid entries. Asks before deleting workspace data. Does not remove the Incus package itself or PipeWire.
 
 ### Versions
 
@@ -234,4 +234,5 @@ The container runs **unprivileged** with:
 | Audio | VirtIO sound device | PipeWire socket passthrough |
 | Terminal | kitty (bundled) | Any terminal |
 | Status UI | Swift menu bar app | CLI (`pai-status`) |
+| Install | `brew install lima kitty` + VM provision | `dnf install incus` / `apt install incus` + container provision |
 | Architecture | macOS + Apple Silicon only | Linux x86_64 + aarch64 |
