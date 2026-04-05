@@ -139,7 +139,7 @@ if [ "$CLAUDE_NEEDS_INSTALL" = true ]; then
   log "Claude Code ${CLAUDE_CODE_VERSION} installed"
 fi
 
-export PATH="$HOME/.claude/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.claude/bin:$PATH"
 
 # Verify (allow drift — Claude Code may auto-update)
 INSTALLED_CLAUDE=$(claude --version 2>/dev/null | grep -oE '[0-9.]+' | head -1 || echo "MISSING")
@@ -168,7 +168,7 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # Claude Code
-export PATH="$HOME/.claude/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.claude/bin:$PATH"
 
 # Local binaries (pip --user, etc.)
 export PATH="$HOME/.local/bin:$PATH"
