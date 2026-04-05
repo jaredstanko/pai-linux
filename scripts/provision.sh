@@ -135,7 +135,7 @@ else
 fi
 
 if [ "$CLAUDE_NEEDS_INSTALL" = true ]; then
-  retry "curl -fsSL https://claude.ai/install.sh | bash -s -- -y ${CLAUDE_CODE_VERSION}"
+  retry "curl -fsSL https://claude.ai/install.sh | bash -s -- ${CLAUDE_CODE_VERSION}"
   log "Claude Code ${CLAUDE_CODE_VERSION} installed"
 fi
 
