@@ -36,50 +36,40 @@ devices:
   # Shared mount: PAI config (claude home)
   claude-home:
     type: disk
-    source: /home/USER_PLACEHOLDER/pai-workspace/claude-home
+    source: HOME_PLACEHOLDER/pai-workspace/claude-home
     path: /home/claude/.claude
 
   # Shared mount: data directory
   data:
     type: disk
-    source: /home/USER_PLACEHOLDER/pai-workspace/data
+    source: HOME_PLACEHOLDER/pai-workspace/data
     path: /home/claude/data
 
   # Shared mount: exchange directory
   exchange:
     type: disk
-    source: /home/USER_PLACEHOLDER/pai-workspace/exchange
+    source: HOME_PLACEHOLDER/pai-workspace/exchange
     path: /home/claude/exchange
 
   # Shared mount: portal directory
   portal:
     type: disk
-    source: /home/USER_PLACEHOLDER/pai-workspace/portal
+    source: HOME_PLACEHOLDER/pai-workspace/portal
     path: /home/claude/portal
 
   # Shared mount: work directory
   work:
     type: disk
-    source: /home/USER_PLACEHOLDER/pai-workspace/work
+    source: HOME_PLACEHOLDER/pai-workspace/work
     path: /home/claude/work
 
   # Shared mount: upstream directory
   upstream:
     type: disk
-    source: /home/USER_PLACEHOLDER/pai-workspace/upstream
+    source: HOME_PLACEHOLDER/pai-workspace/upstream
     path: /home/claude/upstream
 
-  # Audio: PipeWire socket passthrough
-  pipewire:
-    type: disk
-    source: /run/user/HOST_UID_PLACEHOLDER/pipewire-0
-    path: /tmp/pipewire-0
-
-  # Audio: PulseAudio socket passthrough (fallback)
-  pulseaudio:
-    type: disk
-    source: /run/user/HOST_UID_PLACEHOLDER/pulse
-    path: /run/user/1000/pulse
+  # Audio devices are added conditionally by install.sh when sockets exist
 
   # Port forward: PAI Companion portal
   portal-proxy:

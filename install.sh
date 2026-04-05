@@ -283,7 +283,7 @@ step "Configuring Incus profile..."
 PROFILE_TEMP=$(mktemp)
 PROFILE_NAME="$INSTANCE_NAME"
 sed \
-  -e "s|USER_PLACEHOLDER|${HOST_USER}|g" \
+  -e "s|HOME_PLACEHOLDER|${HOME}|g" \
   -e "s|HOST_UID_PLACEHOLDER|${HOST_UID}|g" \
   -e "s|pai-workspace/|${WORKSPACE##*/}/|g" \
   "$SCRIPT_DIR/profiles/pai.yaml" > "$PROFILE_TEMP"
@@ -304,6 +304,26 @@ else
 fi
 
 rm -f "$PROFILE_TEMP"
+
+# Add audio devices only if sockets exist on the host
+PIPEWIRE_SOCK="/run/user/${HOST_UID}/pipewire-0"
+PULSE_DIR="/run/user/${HOST_UID}/pulse"
+
+if [ -e "$PIPEWIRE_SOCK" ]; then
+  incus profile device add "$PROFILE_NAME" pipewire disk \
+    source="$PIPEWIRE_SOCK" path=/tmp/pipewire-0 >> "$LOG_FILE" 2>&1 || true
+  ok "PipeWire audio passthrough enabled"
+fi
+
+if [ -d "$PULSE_DIR" ]; then
+  incus profile device add "$PROFILE_NAME" pulseaudio disk \
+    source="$PULSE_DIR" path=/run/user/1000/pulse >> "$LOG_FILE" 2>&1 || true
+  ok "PulseAudio audio passthrough enabled"
+fi
+
+if [ ! -e "$PIPEWIRE_SOCK" ] && [ ! -d "$PULSE_DIR" ]; then
+  echo -e "        ${YELLOW}⊘${NC} No audio sockets found (headless server — audio passthrough skipped)"
+fi
 
 # --- Step 5: Create and start container -----------------------------------
 
