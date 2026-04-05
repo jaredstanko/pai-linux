@@ -213,8 +213,17 @@ fi
 # Ubuntu sets this up automatically; Fedora and others may not.
 SUBUID_CHANGED=false
 
-# Root needs a large range for container user namespaces
-if ! grep -q "^root:" /etc/subuid 2>/dev/null; then
+# Root needs a large range for container user namespaces.
+# Check if root has at least 65536 subordinate UIDs (minimum for unprivileged containers).
+ROOT_HAS_RANGE=false
+while IFS=: read -r user start count; do
+  if [ "$user" = "root" ] && [ "$count" -ge 65536 ] 2>/dev/null; then
+    ROOT_HAS_RANGE=true
+    break
+  fi
+done < /etc/subuid 2>/dev/null
+
+if [ "$ROOT_HAS_RANGE" = false ]; then
   echo "        Adding subordinate UID/GID ranges for root..."
   sudo sh -c 'echo "root:1000000:1000000000" >> /etc/subuid'
   sudo sh -c 'echo "root:1000000:1000000000" >> /etc/subgid'
