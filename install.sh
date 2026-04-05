@@ -231,49 +231,51 @@ if ! grep -q "^root:.*" /etc/subuid 2>/dev/null || \
   fi
 fi
 
-# Initialize Incus if not already done
+# Initialize Incus — ensure both storage pool and network exist
+INCUS_NEEDS_INIT=false
+
 if ! incus storage list 2>/dev/null | grep -q "default"; then
-  echo "        Initializing Incus with defaults..."
-  if ! incus admin init --auto >> "$LOG_FILE" 2>&1; then
-    # --auto can fail in VMs where common subnets are taken.
-    # Fall back to preseed with an explicit subnet.
-    echo "        Auto-init failed (likely subnet conflict). Trying manual config..."
-    for OCTET in 200 201 202 203 204; do
-      CANDIDATE="10.${OCTET}.0.1/24"
-      if ! ip route show | grep -q "10.${OCTET}.0."; then
-        cat <<PRESEED | incus admin init --preseed >> "$LOG_FILE" 2>&1 && break
-config: {}
-networks:
-- config:
-    ipv4.address: "${CANDIDATE}"
-    ipv4.nat: "true"
-    ipv6.address: none
-  description: ""
-  name: incusbr0
-  type: bridge
-storage_pools:
-- config: {}
-  description: ""
-  name: default
-  driver: dir
-profiles:
-- config: {}
-  description: Default Incus profile
-  devices:
-    eth0:
-      name: eth0
-      network: incusbr0
-      type: nic
-    root:
-      path: /
-      pool: default
-      type: disk
-  name: default
-PRESEED
-      fi
-    done
+  INCUS_NEEDS_INIT=true
+fi
+if ! incus network list 2>/dev/null | grep -q "incusbr0"; then
+  INCUS_NEEDS_INIT=true
+fi
+
+if [ "$INCUS_NEEDS_INIT" = true ]; then
+  echo "        Initializing Incus..."
+
+  # Try auto-init first (works on most systems)
+  if incus admin init --auto >> "$LOG_FILE" 2>&1; then
+    ok "Incus initialized"
+  else
+    # --auto can fail when common subnets are taken (VMs).
+    # Create missing pieces individually.
+
+    # Storage pool — create if missing
+    if ! incus storage list 2>/dev/null | grep -q "default"; then
+      echo "        Creating default storage pool..."
+      incus storage create default dir >> "$LOG_FILE" 2>&1
+    fi
+
+    # Network bridge — create if missing, find a free subnet
+    if ! incus network list 2>/dev/null | grep -q "incusbr0"; then
+      echo "        Creating network bridge (auto-init subnet conflict)..."
+      for OCTET in 200 201 202 203 204; do
+        CANDIDATE="10.${OCTET}.0.1/24"
+        if ! ip route show | grep -q "10.${OCTET}.0."; then
+          incus network create incusbr0 \
+            ipv4.address="${CANDIDATE}" ipv4.nat=true ipv6.address=none \
+            >> "$LOG_FILE" 2>&1 && break
+        fi
+      done
+    fi
+
+    # Ensure default profile has the network and storage
+    incus profile device add default eth0 nic network=incusbr0 >> "$LOG_FILE" 2>&1 || true
+    incus profile device add default root disk path=/ pool=default >> "$LOG_FILE" 2>&1 || true
+
+    ok "Incus initialized (manual config)"
   fi
-  ok "Incus initialized (default storage pool)"
 else
   skip "Incus already initialized"
 fi
