@@ -226,6 +226,26 @@ echo ""
 warn "After setup completes, run 'claude' and sign in with your Anthropic account."
 echo ""
 
+# Disable telemetry and crash reporting
+mkdir -p "$HOME/.claude"
+SETTINGS_FILE="$HOME/.claude/settings.json"
+if [ -f "$SETTINGS_FILE" ]; then
+  # Merge env block into existing settings
+  TMP_SETTINGS=$(mktemp)
+  jq '. + {"env": ((.env // {}) + {"DISABLE_TELEMETRY": "1", "DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"})}' "$SETTINGS_FILE" > "$TMP_SETTINGS" && mv "$TMP_SETTINGS" "$SETTINGS_FILE"
+else
+  cat > "$SETTINGS_FILE" <<'SETTINGSEOF'
+{
+  "env": {
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  }
+}
+SETTINGSEOF
+fi
+log "Claude Code telemetry and crash reporting disabled"
+
 # --- Step 3b: Shell environment -------------------------------------------
 step "3b" "Configuring shell environment..."
 
